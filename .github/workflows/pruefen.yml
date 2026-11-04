@@ -1,10 +1,18 @@
-# Übersetzt die App auf einem macOS-Läufer und meldet echte Compilerfehler
-# zurück. Kein Signieren, kein Hochladen -- dafür gibt es keinen Mac hier,
-# dieser Läufer ist der einzige Compiler, den das Projekt hat.
+# Übersetzt Anker, und auf Wunsch signiert sie und lädt sie nach TestFlight.
+# Kein Mac vorhanden -- dieser Läufer ist der einzige Compiler des Projekts.
+#
+# GEHEIMNISSE (gesetzt über ios_geheimnisse.py-artiges Skript):
+#   APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID,
+#   APP_STORE_CONNECT_API_KEY, MATCH_PASSWORD, MATCH_GIT_BASIC_AUTHORIZATION
 name: Prüfen
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      hochladen:
+        description: "Signieren und nach TestFlight hochladen (sonst nur im Simulator bauen)"
+        type: boolean
+        default: false
 
 concurrency:
   group: pruefen-${{ github.ref }}
@@ -26,21 +34,32 @@ jobs:
       - name: Projekt erzeugen
         run: xcodegen generate
 
+      - name: Ruby und fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
       - name: Im Simulator bauen (ohne Signatur)
-        run: |
-          set -o pipefail
-          xcodebuild build \
-            -project Anker.xcodeproj \
-            -scheme Anker \
-            -destination 'generic/platform=iOS Simulator' \
-            -skipPackagePluginValidation \
-            CODE_SIGNING_ALLOWED=NO \
-            | tee /tmp/bau.log
+        if: ${{ !inputs.hochladen }}
+        run: bundle exec fastlane pruefen
+
+      - name: Signieren und nach TestFlight
+        if: inputs.hochladen
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+        run: bundle exec fastlane beta
 
       - name: Bauprotokoll sichern
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bauprotokoll
-          path: /tmp/bau.log
+          path: |
+            ~/Library/Logs/gym/**
+            /tmp/bau.log
           if-no-files-found: ignore

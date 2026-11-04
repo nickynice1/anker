@@ -1,0 +1,80 @@
+default_platform(:ios)
+
+# Anker nach TestFlight. Aufgebaut nach dem Vorbild von Routetree/Gameday
+# (ios_bauen.py / ios.yml) -- derselbe Weg, dasselbe Zertifikats-Repo,
+# nur ohne Uhr und ohne Bildschirmfoto-Lauf, die braucht dieses Projekt
+# nicht.
+
+APP_ID  = "de.niklasbergmann.anker"
+TEAM_ID = "TWWACY35P9"
+
+platform :ios do
+  desc "Signieren (match) und zu TestFlight hochladen"
+  lane :beta do
+    setup_ci
+
+    key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+      key_content: ENV["APP_STORE_CONNECT_API_KEY"]
+    )
+
+    match(
+      type: "appstore",
+      app_identifier: [APP_ID],
+      api_key: key,
+      git_url: "https://github.com/nickynice1/nova-app-certs",
+      storage_mode: "git",
+      readonly: false,
+      force: true
+    )
+
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Anker.xcodeproj",
+      targets: ["Anker"],
+      code_sign_identity: "Apple Distribution",
+      profile_name: "match AppStore #{APP_ID}",
+      team_id: TEAM_ID
+    )
+
+    # Zeitstempel statt hochgezaehlter Nummer -- aus demselben Grund wie
+    # bei Routetree: gebaut wird ueber einen oeffentlichen Spiegel, der
+    # nach jedem Bau neu entsteht, eine hochgezaehlte Nummer faengt dann
+    # immer wieder bei 1 an und kollidiert mit TestFlight.
+    naechste = Time.now.utc.strftime("%y%m%d%H%M")
+    UI.message("Buildnummer #{naechste} (Zeitstempel, steigt immer)")
+    increment_build_number(
+      xcodeproj: "Anker.xcodeproj",
+      build_number: naechste
+    )
+
+    build_app(
+      project: "Anker.xcodeproj",
+      scheme: "Anker",
+      configuration: "Release",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: { APP_ID => "match AppStore #{APP_ID}" },
+        teamID: TEAM_ID
+      }
+    )
+
+    upload_to_testflight(
+      api_key: key,
+      skip_waiting_for_build_processing: true,
+      changelog: ENV["TESTFLIGHT_HINWEIS"] || "Erster Stand."
+    )
+  end
+
+  desc "Nur im Simulator bauen, ohne Signierung"
+  lane :pruefen do
+    build_app(
+      project: "Anker.xcodeproj",
+      scheme: "Anker",
+      skip_package_ipa: true,
+      skip_archive: true,
+      destination: "generic/platform=iOS Simulator"
+    )
+  end
+end
