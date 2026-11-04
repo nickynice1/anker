@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Eine Tab-Seite: Kopfzeile mit Status, darunter das Terminal selbst. Tippt
 /// man das Terminal an, geht die Tastatur auf und jedes Zeichen geht direkt
@@ -86,6 +87,21 @@ struct TerminalSessionView: View {
                     erneutVerbindenKnopf
                 }
             }
+            Button {
+                // `resignFirstResponder` über die View selbst würde nur dann
+                // wirken, wenn SIE gerade First Responder ist -- bei einem
+                // Tap irgendwo daneben (z. B. genau hier auf den Button) kann
+                // das nicht mehr stimmen. Der app-weite Umweg über `nil` als
+                // Ziel lässt UIKit selbst den echten First Responder finden
+                // und fragen, unabhängig davon, welche View das gerade ist.
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            } label: {
+                Image(systemName: "keyboard.chevron.compact.down")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            .accessibilityLabel("Tastatur einklappen")
+
             Button {
                 // Tmux-Standardkombination zum Trennen: erst die Präfixtaste
                 // (Strg+B), danach „d" -- genau was man sonst von Hand tippen
