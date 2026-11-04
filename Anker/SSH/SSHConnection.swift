@@ -304,20 +304,21 @@ actor SSHConnection {
                 throw SSHVerbindungsFehler.schlüsselNichtLesbar
             }
 
-            // Als unveränderliche Kopie erneut gebunden, bevor sie in die
+            // Unveränderliche Kopie unter neuem Namen, bevor sie in die
             // `@Sendable`-Closure wandert -- sonst meldet Swift eine Referenz
             // auf eine erfasste `var` in nebenläufigem Code (im Swift-6-Modus
-            // ein Fehler, hier nur eine Warnung, aber unnötig). `istRSA`
-            // selbst wird unten gar nicht mehr gebraucht, nur noch als Teil
-            // der `guard`-Prüfung oben.
-            let istEd25519 = istEd25519
+            // ein Fehler, hier nur eine Warnung, aber unnötig). Ein eigener
+            // Name statt gleichnamigem Schatten, weil Swift eine `let`-
+            // Neudeklaration mit demselben Namen in derselben Ebene wie die
+            // `var`-Deklaration als ungültige Neudeklaration ablehnt.
+            let istPassendEd25519 = istEd25519
 
             // Im Closure wird NUR der Text eingefangen (`String` ist nebenläufigkeitssicher)
             // und bei jedem Aufruf neu geparst — der geparste Schlüssel selbst
             // (`Insecure.RSA.PrivateKey`) ist es nicht und dürfte sonst nicht in ein
             // `@Sendable`-Closure wandern.
             return {
-                if istEd25519, let schlüssel = try? Curve25519.Signing.PrivateKey(sshEd25519: geheimnis) {
+                if istPassendEd25519, let schlüssel = try? Curve25519.Signing.PrivateKey(sshEd25519: geheimnis) {
                     return .ed25519(username: benutzer, privateKey: schlüssel)
                 }
                 if let schlüssel = try? Insecure.RSA.PrivateKey(sshRsa: geheimnis) {
