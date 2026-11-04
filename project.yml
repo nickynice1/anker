@@ -6,12 +6,17 @@ options:
   createIntermediateGroups: true
 
 packages:
+  # Feste Versionen statt `from:` -- ein `from:` holt bei jedem Bau die
+  # neueste passende Fassung, und SwiftTerm ist so schon unbemerkt von 1.2.0
+  # auf 1.99.2 gesprungen (samt neuem swift-tools-Mindeststand). Ein Bau kann
+  # dadurch brechen, ohne dass sich an Ankers eigenem Quelltext etwas
+  # geändert hat. Erhöhen nur bewusst, nicht automatisch.
   SwiftTerm:
     url: https://github.com/migueldeicaza/SwiftTerm.git
-    from: 1.2.0
+    exactVersion: 1.99.2
   Citadel:
     url: https://github.com/orlandos-nl/Citadel.git
-    from: 0.8.0
+    exactVersion: 0.12.1
 
 targets:
   Anker:
@@ -31,6 +36,12 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSFaceIDUsageDescription: "Zum Entsperren deiner gespeicherten Zugangsdaten."
+        # Ohne diesen Eintrag fragt App Store Connect bei JEDEM Build von
+        # Hand nach der Exportkontroll-Einstufung. SSH nutzt zwar
+        # Standardverschlüsselung, aber nur zur eigenen Anmeldung an selbst
+        # betriebenen Servern, nicht öffentlich vertrieben und nicht in
+        # Frankreich -- die Antwort war bei jedem bisherigen Build "NO".
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.niklasbergmann.anker

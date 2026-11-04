@@ -10,12 +10,17 @@ final class SessionsManager {
     private(set) var offeneVerbindungen: [SSHConnection] = []
     var ausgewählteID: UUID?
 
-    func öffnen(_ host: Host, geheimnis: String) {
+    /// `hosts` wird gebraucht, um das Geheimnis bei JEDEM Verbindungsversuch
+    /// frisch aus dem Schlüsselbund zu lesen (siehe `SSHConnection`s eigene
+    /// Erklärung dazu), nicht nur einmal beim ersten Öffnen des Tabs.
+    func öffnen(_ host: Host, hosts: HostsStore) {
         if let bestehende = offeneVerbindungen.first(where: { $0.host.id == host.id }) {
             ausgewählteID = bestehende.host.id
             return
         }
-        let verbindung = SSHConnection(host: host, geheimnisQuelle: { geheimnis })
+        let verbindung = SSHConnection(host: host, geheimnisQuelle: { [weak hosts] in
+            hosts?.geheimnis(für: host) ?? ""
+        })
         offeneVerbindungen.append(verbindung)
         ausgewählteID = host.id
     }
@@ -26,9 +31,5 @@ final class SessionsManager {
         if ausgewählteID == verbindung.host.id {
             ausgewählteID = offeneVerbindungen.last?.host.id
         }
-    }
-
-    var ausgewählt: SSHConnection? {
-        offeneVerbindungen.first { $0.host.id == ausgewählteID }
     }
 }

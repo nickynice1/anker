@@ -88,6 +88,11 @@ struct TerminalViewRepresentable: UIViewRepresentable {
 
         func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
             guard let verbindung else { return }
+            // Absicherung für den unwahrscheinlichen Fall, dass UIKit beim
+            // Zuklappen eines Sheets kurzzeitig den vorherigen, jetzt
+            // unsichtbaren Tab wieder zum First Responder macht: lieber eine
+            // Eingabe verwerfen als sie in den falschen Tab zu schicken.
+            guard warAktiv else { return }
             Task { await verbindung.rohSenden(Array(data)) }
         }
 
@@ -98,16 +103,23 @@ struct TerminalViewRepresentable: UIViewRepresentable {
         /// einem Schätzwert zu starten und hinterher umzugrößern, wo sich
         /// schon gezeichneter Inhalt (tmux-Statuszeile, TUI-Ausgabe) nicht
         /// sauber neu aufbaut, sondern überlagert. Ob das hier ein Erstaufbau
-        /// oder ein Umgrößern ist, entscheidet der echte Verbindungsstatus,
-        /// nicht nur "ist das die erste Meldung dieser View" -- sonst würde
-        /// ein Tab-Wechsel direkt nach einer Drehung ins Leere laufen.
+        /// oder ein Umgrößern ist, entscheidet der echte Verbindungsstatus.
+        ///
+        /// WICHTIG: Für den "noch nicht aktiv"-Zweig wird NICHT `verbinden()`
+        /// gerufen, sondern `verbindenFallsNeu()` -- das verbindet nur beim
+        /// allerersten Mal automatisch. Größenänderungen kommen bei jedem
+        /// Tastatur-Auf/Zu, jeder Drehung, und für ALLE gemounteten Tabs
+        /// gleichzeitig (auch unsichtbare). Würde das nach einem Fehlschlag
+        /// erneut `verbinden()` aufrufen, entstünde bei falschem oder leerem
+        /// Passwort eine schnelle Serie von Anmeldeversuchen -- genug, um von
+        /// fail2ban auf dem Server gesperrt zu werden.
         func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
             guard let verbindung else { return }
             Task {
                 if await verbindung.istAktiv {
                     await verbindung.größeÄndern(spalten: newCols, zeilen: newRows)
                 } else {
-                    await verbindung.verbinden(spalten: newCols, zeilen: newRows)
+                    await verbindung.verbindenFallsNeu(spalten: newCols, zeilen: newRows)
                 }
             }
         }

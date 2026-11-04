@@ -35,7 +35,7 @@ struct TerminalTabsView: View {
         .background(Theme.terminalBackground)
         .sheet(isPresented: $hostListeZeigen) {
             HostListView(hosts: hosts) { host in
-                sitzungen.öffnen(host, geheimnis: hosts.geheimnis(für: host))
+                sitzungen.öffnen(host, hosts: hosts)
                 hostListeZeigen = false
             }
         }
@@ -83,7 +83,7 @@ struct TerminalTabsView: View {
                 List {
                     ForEach(hosts.hosts.sorted(by: { $0.reihenfolge < $1.reihenfolge })) { host in
                         HostZeile(host: host) {
-                            sitzungen.öffnen(host, geheimnis: hosts.geheimnis(für: host))
+                            sitzungen.öffnen(host, hosts: hosts)
                         } bearbeiten: {
                             bearbeiteterHost = host
                         }
@@ -117,7 +117,12 @@ private struct TabKachel: View {
     let istAktiv: Bool
     let auswählen: () -> Void
     let schließen: () -> Void
-    @State private var zustand: ConnectionState = .getrennt
+
+    /// Direkt gelesen, nicht mehr über einen eigenen `AsyncStream`-Leser --
+    /// der lief gleichzeitig mit dem in `TerminalSessionView` um dieselben
+    /// Meldungen, und ein `AsyncStream` liefert jedes Element an nur EINEN
+    /// Leser. Siehe `VerbindungsZustand` in SSHConnection.swift.
+    private var zustand: ConnectionState { verbindung.beobachtbar.wert }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -139,10 +144,5 @@ private struct TabKachel: View {
                 .fill(istAktiv ? Theme.surfaceRaised : Color.clear)
         )
         .onTapGesture(perform: auswählen)
-        .task {
-            for await neuerZustand in verbindung.zustandsStrom {
-                zustand = neuerZustand
-            }
-        }
     }
 }

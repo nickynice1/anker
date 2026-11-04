@@ -15,7 +15,12 @@ struct TerminalSessionView: View {
     let istAktiv: Bool
     @Environment(\.scenePhase) private var szenenPhase
 
-    @State private var zustand: ConnectionState = .getrennt
+    /// Direkt von `verbindung.beobachtbar` gelesen, nicht mehr über einen
+    /// `AsyncStream` beobachtet -- der wurde vorher GLEICHZEITIG von dieser
+    /// Ansicht UND der Tab-Kachel konsumiert, ein `AsyncStream` liefert aber
+    /// jedes Element an nur EINEN wartenden Leser. Die beiden sahen darum nie
+    /// denselben Zustand. `@Observable` benachrichtigt dagegen jeden Leser.
+    private var zustand: ConnectionState { verbindung.beobachtbar.wert }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,27 +30,31 @@ struct TerminalSessionView: View {
         }
         .background(Theme.terminalBackground)
         .task {
-            // Verbindet wird NICHT hier ausgelöst, sondern von der allerersten
-            // echten Größenmeldung aus `TerminalViewRepresentable` -- sonst
-            // würde mit einem Schätzwert statt der echten Bildschirmbreite
-            // verbunden (siehe dort). Diese Zeit misst SwiftTerm selbst, nicht
-            // die Uhr: Falls sie aus irgendeinem Grund ausbleibt, verbindet
-            // dieses Sicherheitsnetz trotzdem noch.
+            // Verbindet wird NICHT hier primär ausgelöst, sondern von der
+            // allerersten echten Größenmeldung aus `TerminalViewRepresentable`
+            // -- sonst würde mit einem Schätzwert statt der echten
+            // Bildschirmbreite verbunden (siehe dort). Diese Zeit misst
+            // SwiftTerm selbst, nicht die Uhr: Falls sie aus irgendeinem
+            // Grund ausbleibt, verbindet dieses Sicherheitsnetz trotzdem noch,
+            // einmalig -- `verbinden()` ist gegen Mehrfachaufrufe abgesichert.
             try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
             await verbindung.verbinden()
-            for await neuerZustand in verbindung.zustandsStrom {
-                zustand = neuerZustand
-            }
         }
         .onChange(of: szenenPhase) { _, neuePhase in
             // iOS pausiert die Verbindung ohnehin nach kurzer Zeit im
             // Hintergrund — hier geht nichts verloren, weil die eigentliche
             // Sitzung per tmux auf dem Server weiterläuft. Beim Zurückkommen
             // wird einfach neu verbunden und automatisch wieder angehängt.
+            // Das ist ein bewusster, von einer menschlichen Handlung
+            // (App wieder in den Vordergrund holen) ausgelöster Versuch --
+            // anders als die automatische Erstverbindung bei einer
+            // Größenänderung wird hier absichtlich IMMER neu versucht, auch
+            // nach einem vorherigen Fehlschlag.
             if neuePhase == .active, case .fehlgeschlagen = zustand {
                 Task { await verbindung.erneutVerbinden() }
             } else if neuePhase == .active, case .getrennt = zustand {
-                Task { await verbindung.verbinden() }
+                Task { await verbindung.erneutVerbinden() }
             }
         }
     }
@@ -62,11 +71,26 @@ struct TerminalSessionView: View {
                 .font(Theme.captionFont)
                 .foregroundStyle(Theme.textSecondary)
             Spacer()
+            // Erscheint nur, wenn es etwas zu tun gibt: Nach einem Fehlschlag
+            // oder einem beendeten Shell-Ende verbindet NICHTS mehr von
+            // selbst (siehe `SSHConnection.jeVersucht`) -- absichtlich, damit
+            // ein falsches Passwort nicht in einer Serie automatischer
+            // Versuche endet. Dafür braucht es diesen Knopf. Das zusätzliche
+            // `jeVersucht` verhindert, dass er im allerersten Moment eines
+            // neu geöffneten Tabs aufblitzt, bevor der erste Versuch überhaupt
+            // begonnen hat -- auch dann ist der Zustand noch `.getrennt`.
+            if verbindung.beobachtbar.jeVersucht {
+                if case .fehlgeschlagen = zustand {
+                    erneutVerbindenKnopf
+                } else if case .getrennt = zustand {
+                    erneutVerbindenKnopf
+                }
+            }
             Button {
                 // Tmux-Standardkombination zum Trennen: erst die Präfixtaste
                 // (Strg+B), danach „d" -- genau was man sonst von Hand tippen
-                // würde, nur als ein Antippen. Läuft auf einer Shell ohne tmux
-                // einfach ins Leere, schadet also nicht.
+                // würde, nur als ein Antippen. Läuft außerhalb von tmux in die
+                // Shell oder ein anderes Programm statt ins Leere.
                 Task { await verbindung.rohSenden([0x02, UInt8(ascii: "d")]) }
             } label: {
                 Image(systemName: "rectangle.portrait.and.arrow.right")
@@ -78,5 +102,16 @@ struct TerminalSessionView: View {
         .padding(.horizontal, Theme.cardPadding)
         .padding(.vertical, 10)
         .background(Theme.surface)
+    }
+
+    private var erneutVerbindenKnopf: some View {
+        Button {
+            Task { await verbindung.erneutVerbinden() }
+        } label: {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Theme.accent)
+        }
+        .accessibilityLabel("Erneut verbinden")
     }
 }

@@ -11,12 +11,26 @@ struct HostEditView: View {
     @Environment(\.dismiss) private var schließen
     @State private var geheimnis = ""
     @State private var istNeu: Bool
+    /// Wie die Anmeldeart beim Öffnen des Formulars war. Wechselt man sie,
+    /// MUSS ein neues Geheimnis her -- sonst würde beim Umstellen von
+    /// "Passwort" auf "Schlüssel" (Feld leer gelassen) das alte Passwort
+    /// stillschweigend als Schlüsseltext weiterverwendet.
+    @State private var ursprünglicheAuthArt: AuthArt
+    /// Eigenes Textfeld statt `TextField(value:format:)` für den Port: Ein
+    /// formatgebundenes Feld übernimmt seinen Wert mancherorts erst bei
+    /// Return oder Fokusverlust -- das Nummernfeld hat aber kein Return, wer
+    /// direkt auf "Sichern" tippt, würde den alten Port speichern.
+    @State private var portText: String
 
     init(hosts: HostsStore, host: Host) {
         self.hosts = hosts
         self._host = State(initialValue: host)
         self._istNeu = State(initialValue: !hosts.hosts.contains { $0.id == host.id })
+        self._ursprünglicheAuthArt = State(initialValue: host.authArt)
+        self._portText = State(initialValue: String(host.port))
     }
+
+    private var authArtGeändert: Bool { host.authArt != ursprünglicheAuthArt }
 
     var body: some View {
         NavigationStack {
@@ -31,7 +45,7 @@ struct HostEditView: View {
                     HStack {
                         Text("Port")
                         Spacer()
-                        TextField("22", value: $host.port, format: .number)
+                        TextField("22", text: $portText)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 70)
@@ -59,7 +73,11 @@ struct HostEditView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
-                    if !istNeu {
+                    if authArtGeändert {
+                        Text("Neue Anmeldeart -- bitte \(host.authArt == .passwort ? "das Passwort" : "den Schlüssel") eingeben.")
+                            .font(Theme.captionFont)
+                            .foregroundStyle(Theme.warning)
+                    } else if !istNeu {
                         Text("Leer lassen, um das gespeicherte Geheimnis zu behalten.")
                             .font(Theme.captionFont)
                             .foregroundStyle(Theme.textSecondary)
@@ -101,13 +119,18 @@ struct HostEditView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Sichern") { sichern() }
-                        .disabled(host.name.isEmpty || host.adresse.isEmpty || host.benutzer.isEmpty)
+                        .disabled(
+                            host.name.isEmpty || host.adresse.isEmpty || host.benutzer.isEmpty
+                                || Int(portText) == nil
+                                || (authArtGeändert && geheimnis.isEmpty)
+                        )
                 }
             }
         }
     }
 
     private func sichern() {
+        host.port = Int(portText) ?? host.port
         if istNeu {
             hosts.hinzufügen(host, geheimnis: geheimnis)
         } else {
