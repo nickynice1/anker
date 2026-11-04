@@ -24,6 +24,13 @@ final class VerbindungsZustand {
     /// gleich automatisch" zu unterscheiden, und ein „Erneut verbinden"-Knopf
     /// bliebe im allerersten Moment eines neu geöffneten Tabs kurz sichtbar.
     var jeVersucht = false
+
+    /// Bewusst `nonisolated`: `SSHConnection.init` erzeugt dieses Objekt in
+    /// seinem eigenen, nicht an den MainActor gebundenen Initialisierer --
+    /// ein normaler (MainActor-gebundener) `init()` ließe sich von dort aus
+    /// nicht synchron aufrufen. Nur das ERZEUGEN ist nonisolated, Lesen und
+    /// Schreiben von `wert`/`jeVersucht` bleiben an den MainActor gebunden.
+    nonisolated init() {}
 }
 
 /// Eine einzelne, langlebige Verbindung zu einem Host. Ein Actor, weil von
@@ -296,6 +303,14 @@ actor SSHConnection {
                 }
                 throw SSHVerbindungsFehler.schlüsselNichtLesbar
             }
+
+            // Als unveränderliche Kopie erneut gebunden, bevor sie in die
+            // `@Sendable`-Closure wandert -- sonst meldet Swift eine Referenz
+            // auf eine erfasste `var` in nebenläufigem Code (im Swift-6-Modus
+            // ein Fehler, hier nur eine Warnung, aber unnötig). `istRSA`
+            // selbst wird unten gar nicht mehr gebraucht, nur noch als Teil
+            // der `guard`-Prüfung oben.
+            let istEd25519 = istEd25519
 
             // Im Closure wird NUR der Text eingefangen (`String` ist nebenläufigkeitssicher)
             // und bei jedem Aufruf neu geparst — der geparste Schlüssel selbst
