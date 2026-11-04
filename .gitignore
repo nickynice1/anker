@@ -1,0 +1,6 @@
+# Von XcodeGen erzeugt, nicht im Repo (project.yml ist die Wahrheit)
+*.xcodeproj
+DerivedData/
+.build/
+.swiftpm/
+*.xcuserstate
