@@ -25,6 +25,16 @@ actor SSHConnection {
     private var schreiber: TTYStdinWriter?
     private var laufendeAufgabe: Task<Void, Never>?
 
+    /// Die Größe, mit der die PTY angefragt wird. Startet bei einem groben
+    /// Schätzwert, wird aber von `verbinden(spalten:zeilen:)` auf die echte
+    /// Größe des Terminal-Views gesetzt, BEVOR überhaupt verbunden wird --
+    /// sonst zeichnen tmux & Co. ihren ersten Bildschirm für 80 Spalten,
+    /// obwohl ein iPhone hochkant viel weniger Platz hat, und das nachträgliche
+    /// Umgrößern reißt den schon gezeichneten Inhalt auseinander statt ihn
+    /// sauber neu aufzubauen.
+    private var spalten = 80
+    private var zeilen = 24
+
     /// Rohe Bytes vom Server, roh weil SwiftTerm selbst mit Bytes arbeitet
     /// (ANSI-Codes, Farben — alles schon im Strom enthalten).
     nonisolated let ausgabe: AsyncStream<[UInt8]>
@@ -50,8 +60,19 @@ actor SSHConnection {
 
     // MARK: Verbinden
 
-    func verbinden() {
+    /// Für `TerminalViewRepresentable`: Ob schon verbunden wird oder bereits
+    /// verbunden ist -- entscheidet, ob eine neue Größenmeldung als ERSTER
+    /// Verbindungsaufbau zählt oder als Umgrößern einer laufenden Sitzung
+    /// (z. B. nach einem Tab-Wechsel samt Drehung in der Zwischenzeit).
+    var istAktiv: Bool { laufendeAufgabe != nil }
+
+    /// `spalten`/`zeilen` kommen von SwiftTerms erster echter Größenmeldung
+    /// (siehe `TerminalViewRepresentable`) -- bleiben sie weg, etwa beim
+    /// automatischen Wiederverbinden, gilt die zuletzt bekannte Größe weiter.
+    func verbinden(spalten: Int? = nil, zeilen: Int? = nil) {
         guard laufendeAufgabe == nil else { return }
+        if let spalten { self.spalten = spalten }
+        if let zeilen { self.zeilen = zeilen }
         zustand = .verbindet
         laufendeAufgabe = Task { [weak self] in
             await self?.sitzungAusführen()
@@ -95,8 +116,8 @@ actor SSHConnection {
                 SSHChannelRequestEvent.PseudoTerminalRequest(
                     wantReply: true,
                     term: "xterm-256color",
-                    terminalCharacterWidth: 80,
-                    terminalRowHeight: 24,
+                    terminalCharacterWidth: spalten,
+                    terminalRowHeight: zeilen,
                     terminalPixelWidth: 0,
                     terminalPixelHeight: 0,
                     terminalModes: .init([.ECHO: 1])
@@ -142,6 +163,8 @@ actor SSHConnection {
     }
 
     func größeÄndern(spalten: Int, zeilen: Int) async {
+        self.spalten = spalten
+        self.zeilen = zeilen
         guard let schreiber else { return }
         try? await schreiber.changeSize(cols: spalten, rows: zeilen, pixelWidth: 0, pixelHeight: 0)
     }

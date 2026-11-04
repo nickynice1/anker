@@ -20,6 +20,13 @@ struct TerminalSessionView: View {
         }
         .background(Theme.terminalBackground)
         .task {
+            // Verbindet wird NICHT hier ausgelöst, sondern von der allerersten
+            // echten Größenmeldung aus `TerminalViewRepresentable` -- sonst
+            // würde mit einem Schätzwert statt der echten Bildschirmbreite
+            // verbunden (siehe dort). Diese Zeit misst SwiftTerm selbst, nicht
+            // die Uhr: Falls sie aus irgendeinem Grund ausbleibt, verbindet
+            // dieses Sicherheitsnetz trotzdem noch.
+            try? await Task.sleep(for: .milliseconds(400))
             await verbindung.verbinden()
             for await neuerZustand in verbindung.zustandsStrom {
                 zustand = neuerZustand

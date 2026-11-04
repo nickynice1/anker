@@ -71,9 +71,25 @@ struct TerminalViewRepresentable: UIViewRepresentable {
             Task { await verbindung.rohSenden(Array(data)) }
         }
 
+        /// SwiftTerm meldet hier JEDE Größenänderung, auch die allererste --
+        /// die kommt praktisch sofort nach dem Einfügen in die View-Hierarchie,
+        /// oft bevor überhaupt eine Verbindung existiert. Genau dafür wird sie
+        /// gebraucht: Mit der echten Spalten-/Zeilenzahl verbinden, statt mit
+        /// einem Schätzwert zu starten und hinterher umzugrößern, wo sich
+        /// schon gezeichneter Inhalt (tmux-Statuszeile, TUI-Ausgabe) nicht
+        /// sauber neu aufbaut, sondern überlagert. Ob das hier ein Erstaufbau
+        /// oder ein Umgrößern ist, entscheidet der echte Verbindungsstatus,
+        /// nicht nur "ist das die erste Meldung dieser View" -- sonst würde
+        /// ein Tab-Wechsel direkt nach einer Drehung ins Leere laufen.
         func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
             guard let verbindung else { return }
-            Task { await verbindung.größeÄndern(spalten: newCols, zeilen: newRows) }
+            Task {
+                if await verbindung.istAktiv {
+                    await verbindung.größeÄndern(spalten: newCols, zeilen: newRows)
+                } else {
+                    await verbindung.verbinden(spalten: newCols, zeilen: newRows)
+                }
+            }
         }
 
         func setTerminalTitle(source: SwiftTerm.TerminalView, title: String) {}
