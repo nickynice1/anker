@@ -163,13 +163,26 @@ actor SSHConnection {
         case .passwort:
             return { .passwordBased(username: benutzer, password: geheimnis) }
         case .schluessel:
-            if let schlüssel = try? Curve25519.Signing.PrivateKey(sshEd25519: geheimnis) {
-                return { .ed25519(username: benutzer, privateKey: schlüssel) }
+            // Nur zur Probe parsen, damit ein kaputter Schlüssel sofort aussagekräftig
+            // scheitert, statt erst beim Verbindungsaufbau mit einer rohen NIO-Meldung.
+            let istEd25519 = (try? Curve25519.Signing.PrivateKey(sshEd25519: geheimnis)) != nil
+            let istRSA = istEd25519 ? false : (try? Insecure.RSA.PrivateKey(sshRsa: geheimnis)) != nil
+            guard istEd25519 || istRSA else { throw SSHVerbindungsFehler.schlüsselNichtLesbar }
+
+            // Im Closure wird NUR der Text eingefangen (`String` ist nebenläufigkeitssicher)
+            // und bei jedem Aufruf neu geparst — der geparste Schlüssel selbst
+            // (`Insecure.RSA.PrivateKey`) ist es nicht und dürfte sonst nicht in ein
+            // `@Sendable`-Closure wandern.
+            return {
+                if istEd25519, let schlüssel = try? Curve25519.Signing.PrivateKey(sshEd25519: geheimnis) {
+                    return .ed25519(username: benutzer, privateKey: schlüssel)
+                }
+                if let schlüssel = try? Insecure.RSA.PrivateKey(sshRsa: geheimnis) {
+                    return .rsa(username: benutzer, privateKey: schlüssel)
+                }
+                // Unerreichbar in der Praxis: oben schon erfolgreich geprüft.
+                return .passwordBased(username: benutzer, password: "")
             }
-            if let schlüssel = try? Insecure.RSA.PrivateKey(sshRsa: geheimnis) {
-                return { .rsa(username: benutzer, privateKey: schlüssel) }
-            }
-            throw SSHVerbindungsFehler.schlüsselNichtLesbar
         }
     }
 
