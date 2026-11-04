@@ -8,6 +8,11 @@ import SwiftUI
 /// funktionieren vim, Pfeiltasten in tmux und Ähnliches sofort richtig.
 struct TerminalSessionView: View {
     let verbindung: SSHConnection
+    /// Ob das hier gerade der sichtbare Tab ist. Diese Ansicht bleibt auch
+    /// für Tabs im Hintergrund aufgebaut (siehe `TerminalTabsView`), braucht
+    /// also eine eigene Information darüber, statt sich allein auf „ich
+    /// existiere" zu verlassen.
+    let istAktiv: Bool
     @Environment(\.scenePhase) private var szenenPhase
 
     @State private var zustand: ConnectionState = .getrennt
@@ -15,7 +20,7 @@ struct TerminalSessionView: View {
     var body: some View {
         VStack(spacing: 0) {
             kopfzeile
-            TerminalViewRepresentable(verbindung: verbindung)
+            TerminalViewRepresentable(verbindung: verbindung, istAktiv: istAktiv)
                 .background(Theme.terminalBackground)
         }
         .background(Theme.terminalBackground)

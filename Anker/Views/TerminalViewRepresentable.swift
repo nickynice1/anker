@@ -12,6 +12,10 @@ import SwiftTerm
 /// `UIKeyInput`, nicht das volle `UITextInput`, das iOS dafür braucht.
 struct TerminalViewRepresentable: UIViewRepresentable {
     let verbindung: SSHConnection
+    /// Ob dies gerade der sichtbare Tab ist. Alle Tabs bleiben jetzt dauerhaft
+    /// aufgebaut (siehe `TerminalTabsView`), darum darf nur der sichtbare die
+    /// Tastatur halten -- sonst tippt man blind in einen Tab im Hintergrund.
+    let istAktiv: Bool
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         let ansicht = SwiftTerm.TerminalView(frame: .zero)
@@ -30,16 +34,31 @@ struct TerminalViewRepresentable: UIViewRepresentable {
         context.coordinator.verbindung = verbindung
         context.coordinator.ansicht = ansicht
         context.coordinator.anAusgabeHängen()
-        // Nur EINMAL beim Erzeugen fokussieren -- nicht in `updateUIView`, das
-        // würde ein Zuklappen der Tastatur (z. B. über SwiftTerms eigenen
-        // Zubehör-Knopf) bei der nächsten SwiftUI-Aktualisierung sofort wieder
-        // aufheben. Antippen des Terminals holt die Tastatur bei Bedarf selbst
-        // zurück, das erledigt SwiftTerm schon selbst.
-        DispatchQueue.main.async { ansicht.becomeFirstResponder() }
+        context.coordinator.warAktiv = istAktiv
+        // Nur fokussieren, wenn das hier auch der sichtbare Tab ist -- ein neu
+        // im Hintergrund geöffneter Tab soll der gerade angezeigten Sitzung
+        // nicht die Tastatur wegnehmen.
+        if istAktiv {
+            DispatchQueue.main.async { ansicht.becomeFirstResponder() }
+        }
         return ansicht
     }
 
-    func updateUIView(_ ansicht: SwiftTerm.TerminalView, context: Context) {}
+    func updateUIView(_ ansicht: SwiftTerm.TerminalView, context: Context) {
+        // Läuft u. a. bei jedem Tab-Wechsel (die Sichtbarkeits-Opacity in
+        // `TerminalTabsView` ändert sich für ALLE Tabs gleichzeitig). Die
+        // Tastatur wird nur beim ÜBERGANG unsichtbar→sichtbar zurückgeholt,
+        // nicht bei jeder Aktualisierung währenddessen -- sonst ließe sich ein
+        // manuelles Zuklappen nie dauerhaft halten (siehe `makeUIView`-Notiz
+        // weiter oben in der Git-Historie).
+        guard context.coordinator.warAktiv != istAktiv else { return }
+        context.coordinator.warAktiv = istAktiv
+        if istAktiv {
+            ansicht.becomeFirstResponder()
+        } else {
+            ansicht.resignFirstResponder()
+        }
+    }
 
     func makeCoordinator() -> Koordinator { Koordinator() }
 
@@ -47,6 +66,7 @@ struct TerminalViewRepresentable: UIViewRepresentable {
     final class Koordinator: NSObject, TerminalViewDelegate {
         var verbindung: SSHConnection?
         weak var ansicht: SwiftTerm.TerminalView?
+        var warAktiv = false
         private var ausgabeAufgabe: Task<Void, Never>?
 
         /// Liest den Byte-Strom der Verbindung und füttert ihn laufend ins

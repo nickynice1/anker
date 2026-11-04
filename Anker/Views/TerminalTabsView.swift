@@ -14,11 +14,22 @@ struct TerminalTabsView: View {
         VStack(spacing: 0) {
             tabLeiste
 
-            if let aktiv = sitzungen.ausgewählt {
-                TerminalSessionView(verbindung: aktiv)
-                    .id(aktiv.host.id)
-            } else {
-                startseite
+            ZStack {
+                // ALLE offenen Tabs bleiben dauerhaft aufgebaut, nicht nur der
+                // sichtbare -- vorher riss ein Tab-Wechsel die Terminal-Ansicht
+                // jedes Mal ab und neu auf (`.id` auf nur EINER Ansicht), was
+                // den schon gezeichneten Bildschirminhalt wegwarf. Das sah wie
+                // ein Verbindungsabbruch aus, obwohl die SSH-Sitzung im
+                // Hintergrund die ganze Zeit weiterlief.
+                ForEach(sitzungen.offeneVerbindungen, id: \.host.id) { verbindung in
+                    let istAktiv = sitzungen.ausgewählteID == verbindung.host.id
+                    TerminalSessionView(verbindung: verbindung, istAktiv: istAktiv)
+                        .opacity(istAktiv ? 1 : 0)
+                        .allowsHitTesting(istAktiv)
+                }
+                if sitzungen.offeneVerbindungen.isEmpty {
+                    startseite
+                }
             }
         }
         .background(Theme.terminalBackground)
