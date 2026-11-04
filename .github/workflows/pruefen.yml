@@ -1,0 +1,45 @@
+# Übersetzt die App auf einem macOS-Läufer und meldet echte Compilerfehler
+# zurück. Kein Signieren, kein Hochladen -- dafür gibt es keinen Mac hier,
+# dieser Läufer ist der einzige Compiler, den das Projekt hat.
+name: Prüfen
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: pruefen-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bauen:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode-Fassung zeigen
+        run: xcodebuild -version
+
+      - name: XcodeGen
+        run: brew install xcodegen
+
+      - name: Projekt erzeugen
+        run: xcodegen generate
+
+      - name: Im Simulator bauen (ohne Signatur)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Anker.xcodeproj \
+            -scheme Anker \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee /tmp/bau.log
+
+      - name: Bauprotokoll sichern
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bauprotokoll
+          path: /tmp/bau.log
+          if-no-files-found: ignore
