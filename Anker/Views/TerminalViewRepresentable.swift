@@ -17,24 +17,29 @@ struct TerminalViewRepresentable: UIViewRepresentable {
         let ansicht = SwiftTerm.TerminalView(frame: .zero)
         ansicht.terminalDelegate = context.coordinator
         ansicht.backgroundColor = UIColor(Theme.terminalBackground)
+        // SwiftTerm setzt die Textfarbe sonst auf `UIColor.label` -- das dreht
+        // sich bei hellem Systemdesign ins fast Schwarze. Unser Terminal bleibt
+        // aber bewusst in JEDER Systemeinstellung dunkel (siehe oben), darum
+        // müssen Vordergrund und Hintergrund hier fest zusammenpassen, nicht
+        // dem System überlassen bleiben -- sonst wird der Text unsichtbar.
+        ansicht.nativeBackgroundColor = UIColor(Theme.terminalBackground)
+        ansicht.nativeForegroundColor = .white
         ansicht.autocorrectionType = .no
         ansicht.smartQuotesType = .no
         ansicht.smartDashesType = .no
         context.coordinator.verbindung = verbindung
         context.coordinator.ansicht = ansicht
         context.coordinator.anAusgabeHängen()
+        // Nur EINMAL beim Erzeugen fokussieren -- nicht in `updateUIView`, das
+        // würde ein Zuklappen der Tastatur (z. B. über SwiftTerms eigenen
+        // Zubehör-Knopf) bei der nächsten SwiftUI-Aktualisierung sofort wieder
+        // aufheben. Antippen des Terminals holt die Tastatur bei Bedarf selbst
+        // zurück, das erledigt SwiftTerm schon selbst.
+        DispatchQueue.main.async { ansicht.becomeFirstResponder() }
         return ansicht
     }
 
-    func updateUIView(_ ansicht: SwiftTerm.TerminalView, context: Context) {
-        // Läuft bei jeder SwiftUI-Aktualisierung erneut, u. a. direkt nach dem
-        // Erzeugen und nach jedem Tab-Wechsel (TerminalSessionView trägt dort
-        // ein `.id`, das die ganze Ansicht neu aufbaut) — dadurch bekommt das
-        // Terminal beim Öffnen und beim Wechseln zuverlässig die Tastatur.
-        if !ansicht.isFirstResponder {
-            ansicht.becomeFirstResponder()
-        }
-    }
+    func updateUIView(_ ansicht: SwiftTerm.TerminalView, context: Context) {}
 
     func makeCoordinator() -> Koordinator { Koordinator() }
 

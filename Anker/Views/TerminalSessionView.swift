@@ -50,6 +50,18 @@ struct TerminalSessionView: View {
                 .font(Theme.captionFont)
                 .foregroundStyle(Theme.textSecondary)
             Spacer()
+            Button {
+                // Tmux-Standardkombination zum Trennen: erst die Präfixtaste
+                // (Strg+B), danach „d" -- genau was man sonst von Hand tippen
+                // würde, nur als ein Antippen. Läuft auf einer Shell ohne tmux
+                // einfach ins Leere, schadet also nicht.
+                Task { await verbindung.rohSenden([0x02, UInt8(ascii: "d")]) }
+            } label: {
+                Image(systemName: "rectangle.portrait.and.arrow.right")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            .accessibilityLabel("Tmux-Sitzung trennen")
         }
         .padding(.horizontal, Theme.cardPadding)
         .padding(.vertical, 10)
