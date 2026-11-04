@@ -36,7 +36,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: de.niklasbergmann.anker
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentAnker
-        SWIFT_VERSION: "6.0"
+        # Swift-6-Sprachmodus wollte Citadel/SwiftTerm (noch nicht vollständig
+        # für die strengsten Sendable-Prüfungen vorbereitet) nicht durchlassen.
+        # async/await und Actors funktionieren in Swift 5 genauso, nur die
+        # schärfste Prüfstufe ist aus.
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1"
