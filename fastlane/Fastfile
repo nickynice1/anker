@@ -54,6 +54,10 @@ platform :ios do
       scheme: "Anker",
       configuration: "Release",
       export_method: "app-store",
+      # SwiftTerm bringt ein Build-Plugin mit, das xcodebuild ohne
+      # Xcode-Oberflaeche nicht von selbst bestaetigt -- derselbe Haken
+      # wie im reinen Simulator-Bau, hier nur ueber fastlane statt direkt.
+      xcargs: "-skipPackagePluginValidation",
       export_options: {
         provisioningProfiles: { APP_ID => "match AppStore #{APP_ID}" },
         teamID: TEAM_ID
@@ -74,6 +78,7 @@ platform :ios do
       scheme: "Anker",
       skip_package_ipa: true,
       skip_archive: true,
+      xcargs: "-skipPackagePluginValidation",
       destination: "generic/platform=iOS Simulator"
     )
   end
