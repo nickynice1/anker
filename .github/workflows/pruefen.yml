@@ -33,6 +33,7 @@ jobs:
             -project Anker.xcodeproj \
             -scheme Anker \
             -destination 'generic/platform=iOS Simulator' \
+            -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO \
             | tee /tmp/bau.log
 
