@@ -1,33 +1,22 @@
 import SwiftUI
 
-/// Eine Tab-Seite: Kopfzeile mit Status, das Terminal selbst, darunter die
-/// Befehlszeile mit normaler iOS-Autokorrektur. Der Rohmodus-Knopf schaltet
-/// auf direkte Tastatureingabe ohne Autokorrektur um — für vim, Pfeiltasten
-/// in tmux, Suchen mit `/` in `less` und Ähnliches, wo jedes Zeichen sofort
-/// ankommen muss.
+/// Eine Tab-Seite: Kopfzeile mit Status, darunter das Terminal selbst. Tippt
+/// man das Terminal an, geht die Tastatur auf und jedes Zeichen geht direkt
+/// an die SSH-Sitzung — genau wie bei einem echten Terminal, Enter sendet die
+/// Zeile ganz normal ab. Keine Autokorrektur hier (SwiftTerm nutzt `UIKeyInput`,
+/// nicht das volle `UITextInput`, das iOS für Vorschläge braucht), dafür
+/// funktionieren vim, Pfeiltasten in tmux und Ähnliches sofort richtig.
 struct TerminalSessionView: View {
     let verbindung: SSHConnection
     @Environment(\.scenePhase) private var szenenPhase
 
     @State private var zustand: ConnectionState = .getrennt
-    @State private var rohModus = false
-    @State private var fokusAnfrage = 0
-    @State private var eingabe = ""
-    @FocusState private var befehlszeileFokussiert: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             kopfzeile
-            TerminalViewRepresentable(
-                verbindung: verbindung,
-                rohModus: $rohModus,
-                fokusAnfrage: fokusAnfrage
-            )
-            .background(Theme.terminalBackground)
-
-            if !rohModus {
-                befehlszeile
-            }
+            TerminalViewRepresentable(verbindung: verbindung)
+                .background(Theme.terminalBackground)
         }
         .background(Theme.terminalBackground)
         .task {
@@ -61,57 +50,9 @@ struct TerminalSessionView: View {
                 .font(Theme.captionFont)
                 .foregroundStyle(Theme.textSecondary)
             Spacer()
-            Button {
-                rohModus.toggle()
-                fokusAnfrage += 1
-                if !rohModus { befehlszeileFokussiert = true }
-            } label: {
-                Label(rohModus ? "Normal" : "Direkt", systemImage: rohModus ? "keyboard" : "keyboard.badge.ellipsis")
-                    .labelStyle(.iconOnly)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(rohModus ? Theme.accent : Theme.textSecondary)
-            }
-            .accessibilityLabel(rohModus ? "Zur normalen Eingabe mit Autokorrektur wechseln" : "Zur direkten Tastatureingabe wechseln")
         }
         .padding(.horizontal, Theme.cardPadding)
         .padding(.vertical, 10)
         .background(Theme.surface)
-    }
-
-    private var befehlszeile: some View {
-        HStack(spacing: 10) {
-            TextField("Befehl …", text: $eingabe, axis: .vertical)
-                .font(Theme.monoFont)
-                .textFieldStyle(.plain)
-                .foregroundStyle(Theme.textPrimary)
-                .autocorrectionDisabled(false)
-                .textInputAutocapitalization(.never)
-                .lineLimit(1...4)
-                .focused($befehlszeileFokussiert)
-                .onSubmit { absenden() }
-                .submitLabel(.send)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Theme.surfaceRaised, in: RoundedRectangle(cornerRadius: 10))
-
-            Button {
-                absenden()
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 26))
-                    .foregroundStyle(eingabe.isEmpty ? Theme.textSecondary : Theme.accent)
-            }
-            .disabled(eingabe.isEmpty)
-        }
-        .padding(.horizontal, Theme.cardPadding)
-        .padding(.vertical, 10)
-        .background(Theme.surface)
-    }
-
-    private func absenden() {
-        guard !eingabe.isEmpty else { return }
-        let text = eingabe
-        eingabe = ""
-        Task { await verbindung.zeileSenden(text) }
     }
 }

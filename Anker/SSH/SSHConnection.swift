@@ -134,15 +134,8 @@ actor SSHConnection {
 
     // MARK: Senden
 
-    /// Für die Befehlszeile unten: ein vollständiger Befehl samt Zeilenumbruch.
-    /// Nutzt die normale iOS-Tastatur mit Autokorrektur.
-    func zeileSenden(_ text: String) async {
-        guard let schreiber else { return }
-        try? await schreiber.write(ByteBuffer(string: text + "\n"))
-    }
-
-    /// Für den Rohmodus: jedes Zeichen einzeln, ohne Autokorrektur, direkt
-    /// an den entfernten Prozess — nötig für vim, tmux-Navigation & Co.
+    /// Jedes Zeichen einzeln, direkt an den entfernten Prozess — so wie ein
+    /// echtes Terminal es erwartet, inklusive vim, tmux-Navigation & Co.
     func rohSenden(_ bytes: [UInt8]) async {
         guard let schreiber else { return }
         try? await schreiber.write(ByteBuffer(bytes: bytes))

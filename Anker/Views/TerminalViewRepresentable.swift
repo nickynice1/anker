@@ -6,25 +6,17 @@ import SwiftTerm
 /// nehmen: die ist im Quelltext ausdrücklich als "Internal, for testing"
 /// markiert und nur in Debug-Builds überhaupt enthalten.
 ///
-/// Wichtig zum Verständnis der App: Diese Ansicht ist nur für die AUSGABE
-/// und für den Rohmodus (direkte Tastatur, kein Autokorrektur-möglich — dazu
-/// unten mehr). Die normale Eingabe läuft über ein eigenes Textfeld in
-/// `TerminalSessionView`.
+/// Das Terminal ist immer direkt bedienbar: Antippen holt die Tastatur,
+/// jedes Zeichen geht sofort an die SSH-Sitzung. Autokorrektur kann iOS hier
+/// grundsätzlich nicht anbieten — SwiftTerm nutzt das UIKit-Eingabeprotokoll
+/// `UIKeyInput`, nicht das volle `UITextInput`, das iOS dafür braucht.
 struct TerminalViewRepresentable: UIViewRepresentable {
     let verbindung: SSHConnection
-    @Binding var rohModus: Bool
-    /// Erhöht sich bei jedem Tab-Wechsel um den rohen Eingabefokus zu setzen.
-    var fokusAnfrage: Int
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         let ansicht = SwiftTerm.TerminalView(frame: .zero)
         ansicht.terminalDelegate = context.coordinator
         ansicht.backgroundColor = UIColor(Theme.terminalBackground)
-        // SwiftTerm nennt das UIKit-Eingabeprotokoll `UIKeyInput`, nicht das
-        // volle `UITextInput` — deshalb zeigt iOS hier grundsätzlich keine
-        // Autokorrektur-Vorschlagsleiste an, auch nicht im Rohmodus. Das ist
-        // kein Fehlen einer Einstellung, sondern wie das Protokoll aufgebaut
-        // ist. Genau deshalb gibt es das eigene Eingabefeld daneben.
         ansicht.autocorrectionType = .no
         ansicht.smartQuotesType = .no
         ansicht.smartDashesType = .no
@@ -35,10 +27,12 @@ struct TerminalViewRepresentable: UIViewRepresentable {
     }
 
     func updateUIView(_ ansicht: SwiftTerm.TerminalView, context: Context) {
-        if rohModus {
+        // Läuft bei jeder SwiftUI-Aktualisierung erneut, u. a. direkt nach dem
+        // Erzeugen und nach jedem Tab-Wechsel (TerminalSessionView trägt dort
+        // ein `.id`, das die ganze Ansicht neu aufbaut) — dadurch bekommt das
+        // Terminal beim Öffnen und beim Wechseln zuverlässig die Tastatur.
+        if !ansicht.isFirstResponder {
             ansicht.becomeFirstResponder()
-        } else {
-            ansicht.resignFirstResponder()
         }
     }
 
