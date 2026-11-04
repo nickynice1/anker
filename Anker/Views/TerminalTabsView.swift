@@ -8,6 +8,7 @@ struct TerminalTabsView: View {
     @Bindable var sitzungen: SessionsManager
     @Bindable var hosts: HostsStore
     @State private var hostListeZeigen = false
+    @State private var bearbeiteterHost: Host?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,7 +18,7 @@ struct TerminalTabsView: View {
                 TerminalSessionView(verbindung: aktiv)
                     .id(aktiv.host.id)
             } else {
-                leerAnsicht
+                startseite
             }
         }
         .background(Theme.terminalBackground)
@@ -26,6 +27,9 @@ struct TerminalTabsView: View {
                 sitzungen.öffnen(host, geheimnis: hosts.geheimnis(für: host))
                 hostListeZeigen = false
             }
+        }
+        .sheet(item: $bearbeiteterHost) { host in
+            HostEditView(hosts: hosts, host: host)
         }
     }
 
@@ -57,15 +61,39 @@ struct TerminalTabsView: View {
         .background(Theme.surface)
     }
 
+    /// Die Startseite: alle gespeicherten Server auf einen Blick, unabhängig
+    /// davon ob schon ein Tab dafür offen ist. Antippen öffnet ihn direkt —
+    /// kein Umweg mehr über einen eigenen Knopf oder ein Sheet.
+    private var startseite: some View {
+        Group {
+            if hosts.hosts.isEmpty {
+                leerAnsicht
+            } else {
+                List {
+                    ForEach(hosts.hosts.sorted(by: { $0.reihenfolge < $1.reihenfolge })) { host in
+                        HostZeile(host: host) {
+                            sitzungen.öffnen(host, geheimnis: hosts.geheimnis(für: host))
+                        } bearbeiten: {
+                            bearbeiteterHost = host
+                        }
+                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+            }
+        }
+        .background(Theme.terminalBackground)
+    }
+
     private var leerAnsicht: some View {
         VStack(spacing: Theme.spacing) {
             Image(systemName: "terminal")
                 .font(.system(size: 40))
                 .foregroundStyle(Theme.textSecondary)
-            Text("Kein Server offen")
+            Text("Noch kein Server angelegt")
                 .font(Theme.headlineFont)
                 .foregroundStyle(Theme.textPrimary)
-            Button("Server öffnen") { hostListeZeigen = true }
+            Button("Server anlegen") { hostListeZeigen = true }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.accent)
         }
